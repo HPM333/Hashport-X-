@@ -1,0 +1,33 @@
+name: X Monitor Bot
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 毎日9時JST（UTC 0時）
+  workflow_dispatch:      # 手動実行ボタンも有効
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write Google OAuth token
+        run: echo '${{ secrets.GOOGLE_TOKEN_JSON }}' > token.json
+
+      - name: Run bot
+        env:
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SPREADSHEET_NAME: ${{ secrets.SPREADSHEET_NAME }}
+        run: python x_monitor_bot.py

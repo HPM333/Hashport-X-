@@ -1,0 +1,8 @@
+.env
+token.json
+oauth_credentials.json
+client_secret_*.json
+.seen_ids.txt
+logs/
+__pycache__/
+*.pyc
