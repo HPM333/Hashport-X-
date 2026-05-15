@@ -309,7 +309,8 @@ def _format_header(sheet):
 
 
 def write_to_sheet(sheet, tweets: list[dict]):
-    """Clear sheet and overwrite with today's data."""
+    """Clear sheet and overwrite with today's data, sorted by post time descending."""
+    tweets = sorted(tweets, key=lambda t: t["created_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     now_jst = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S")
     rows = [HEADERS]
 

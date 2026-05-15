@@ -25,6 +25,9 @@ jobs:
       - name: Write Google OAuth token
         run: echo '${{ secrets.GOOGLE_TOKEN_JSON }}' > token.json
 
+      - name: Write Google OAuth credentials
+        run: echo '${{ secrets.GOOGLE_OAUTH_CREDENTIALS_JSON }}' > oauth_credentials.json
+
       - name: Run bot
         env:
           X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
