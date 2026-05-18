@@ -283,15 +283,17 @@ _JUDGMENT_COLORS = {
 }
 
 
-def _color_judgment_cells(sheet, tweets: list[dict]):
-    """L列（ポジネガ判定）をポジ=緑、ネガ=赤、ニュートラル=黄で色付け。"""
+def _color_judgment_rows(sheet, data_rows: list):
+    """全データ行のL列（ポジネガ判定）を色付け。data_rowsはヘッダーを含まないリスト。"""
+    judgment_col_idx = HEADERS.index("ポジネガ判定")  # 11
     fmt_requests = []
-    for i, t in enumerate(tweets):
-        color = _JUDGMENT_COLORS.get(t.get("judgment", ""))
+    for i, row in enumerate(data_rows):
+        judgment = row[judgment_col_idx] if len(row) > judgment_col_idx else ""
+        color = _JUDGMENT_COLORS.get(judgment)
         if color:
-            row = i + 2  # 1行目はヘッダー
+            row_num = i + 2  # 1行目はヘッダー
             fmt_requests.append({
-                "range": f"L{row}",
+                "range": f"L{row_num}",
                 "format": {"backgroundColor": color},
             })
     if fmt_requests:
@@ -309,18 +311,33 @@ def _format_header(sheet):
 
 
 def write_to_sheet(sheet, tweets: list[dict]):
-    """Clear sheet and overwrite with today's data, sorted by post time descending."""
-    tweets = sorted(tweets, key=lambda t: t["created_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    now_jst = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S")
-    rows = [HEADERS]
+    """Append new tweets to sheet (累積モード). 既存URLと重複しないものだけ追加し、投稿日時降順で全体を並び替え。"""
+    url_col_idx = HEADERS.index("投稿URL")  # 5
 
-    for t in tweets:
+    # 既存データを読み込み、登録済みURLを収集
+    existing_rows = sheet.get_all_values()
+    existing_data_rows = []
+    existing_urls = set()
+    if len(existing_rows) > 1:
+        for row in existing_rows[1:]:  # ヘッダー除外
+            existing_data_rows.append(row)
+            if len(row) > url_col_idx and row[url_col_idx]:
+                existing_urls.add(row[url_col_idx])
+
+    # 新規ツイートのみ抽出（URLで重複除外）
+    new_tweets = [t for t in tweets if t.get("url", "") not in existing_urls]
+    if not new_tweets:
+        print("[INFO] 新規ツイートなし（すべて既存）。シートは変更しません。")
+        return
+
+    now_jst = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S")
+    new_rows = []
+    for t in new_tweets:
         if t["created_at"]:
             posted_jst = t["created_at"].astimezone(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S")
         else:
             posted_jst = ""
-
-        rows.append([
+        new_rows.append([
             now_jst,
             posted_jst,
             t.get("username", ""),
@@ -336,13 +353,18 @@ def write_to_sheet(sheet, tweets: list[dict]):
             t.get("judgment_reason", ""),
         ])
 
-    # Clear all and rewrite from A1
+    # 既存 + 新規を結合し、投稿日時（列インデックス1）で降順ソート
+    all_data_rows = existing_data_rows + new_rows
+    all_data_rows.sort(key=lambda r: r[1] if len(r) > 1 and r[1] else "", reverse=True)
+
+    # ヘッダー + 全データを書き込み
+    all_rows = [HEADERS] + all_data_rows
     sheet.clear()
-    sheet.update("A1", rows, value_input_option="USER_ENTERED")
+    sheet.update("A1", all_rows, value_input_option="USER_ENTERED")
     sheet.freeze(rows=1)
     _format_header(sheet)
-    _color_judgment_cells(sheet, tweets)
-    print(f"[INFO] Overwrote sheet with {len(rows) - 1} rows.")
+    _color_judgment_rows(sheet, all_data_rows)
+    print(f"[INFO] {len(new_rows)}件追加。合計 {len(all_data_rows)} 行。")
 
 
 # ─── Deduplication ───────────────────────────────────────────────────────────
